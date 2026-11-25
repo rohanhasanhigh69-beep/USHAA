@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AnimatePresence, MotionConfig, motion } from 'motion/react';
 import { Sparkles } from 'lucide-react';
 import ParticleCanvas, { ParticleMode } from './components/ParticleCanvas';
+import PinkRoseBackdrop, { SmallPinkRoseIcon } from './components/PinkRoseBackdrop';
 import LandingStep from './components/LandingStep';
 import DateStep from './components/DateStep';
 import ActivityStep from './components/ActivityStep';
@@ -149,6 +150,8 @@ export default function App() {
   return (
     <MotionConfig reducedMotion="user">
       <div className="relative flex h-dvh flex-col justify-between overflow-hidden">
+        <PinkRoseBackdrop />
+
         <ParticleCanvas
           mode={particleMode}
           celebrating={isCelebrating}
@@ -162,8 +165,9 @@ export default function App() {
           <button
             type="button"
             onClick={() => goToStep('landing')}
-            className="font-display text-base font-semibold tracking-tight text-[#3d0e1e] transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 sm:text-lg whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-1.5 font-display text-base font-semibold tracking-tight text-[#3d0e1e] transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 sm:text-lg whitespace-nowrap shrink-0"
           >
+            <SmallPinkRoseIcon className="h-5 w-5 shrink-0 sm:h-6 sm:w-6" />
             For Usha 💗
           </button>
 
@@ -262,6 +266,7 @@ export default function App() {
             {(
               [
                 { id: 'hearts', label: 'Hearts' },
+                { id: 'roses', label: 'Roses' },
                 { id: 'petals', label: 'Petals' },
                 { id: 'starlight', label: 'Sparkles' },
               ] as const

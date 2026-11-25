@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { MouseEvent, useEffect, useRef, useState } from 'react';
+import { clampDodgeOffset, computeDodgeOffset } from '../utils/dodgeButton';
+import { SmallPinkRoseIcon } from './PinkRoseBackdrop';
 
 const NO_MESSAGES = [
   'No 🙈',
@@ -22,7 +24,9 @@ export default function LandingStep({ onYesClick, onBurst }: LandingStepProps) {
   const cardRef = useRef<HTMLDivElement | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const yesBtnRef = useRef<HTMLButtonElement | null>(null);
+  const noAnchorRef = useRef<HTMLDivElement | null>(null);
   const noBtnRef = useRef<HTMLButtonElement | null>(null);
+  const lastMoveAtRef = useRef<number>(0);
 
   useEffect(() => {
     if (noCount === 0) return;
@@ -31,32 +35,23 @@ export default function LandingStep({ onYesClick, onBurst }: LandingStepProps) {
       const noEl = noBtnRef.current;
       if (!noEl) return;
       const rect = noEl.getBoundingClientRect();
-      const pad = 16;
-      let dx = 0;
-      let dy = 0;
-
-      if (rect.left < pad) dx = pad - rect.left;
-      if (rect.right > window.innerWidth - pad) {
-        dx = window.innerWidth - pad - rect.right;
-      }
-      if (rect.top < 64) dy = 64 - rect.top;
-      if (rect.bottom > window.innerHeight - pad) {
-        dy = window.innerHeight - pad - rect.bottom;
-      }
-
-      if (dx !== 0 || dy !== 0) {
-        setNoOffset((prev) => ({
-          x: Math.round(prev.x + dx),
-          y: Math.round(prev.y + dy),
-        }));
-      }
+      setNoOffset((prev) => {
+        const clamped = clampDodgeOffset(rect, prev, {
+          width: window.innerWidth,
+          height: window.innerHeight,
+        });
+        return clamped ?? prev;
+      });
     };
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [noCount]);
 
-  const moveNoButton = () => {
+  const moveNoButton = (cursor?: { x: number; y: number } | null) => {
+    const now = performance.now();
+    lastMoveAtRef.current = now;
+
     const noEl = noBtnRef.current;
     if (!noEl) {
       setNoCount((c) => c + 1);
@@ -64,74 +59,45 @@ export default function LandingStep({ onYesClick, onBurst }: LandingStepProps) {
     }
 
     const noRect = noEl.getBoundingClientRect();
-    const originLeft = noRect.left - noOffset.x;
-    const originTop = noRect.top - noOffset.y;
-
-    const estWidth = Math.max(noRect.width, 160);
-    const estHeight = Math.max(noRect.height, 48);
-
-    const minLeft = 16;
-    const maxLeft = Math.max(minLeft, window.innerWidth - estWidth - 16);
-    const minTop = 64;
-    const maxTop = Math.max(minTop, window.innerHeight - estHeight - 20);
+    const anchorRect = noAnchorRef.current?.getBoundingClientRect();
+    const origin = anchorRect
+      ? { left: anchorRect.left, top: anchorRect.top }
+      : { left: noRect.left - noOffset.x, top: noRect.top - noOffset.y };
 
     const protectedRects = [
       yesBtnRef.current?.getBoundingClientRect(),
       headingRef.current?.getBoundingClientRect(),
     ].filter((r): r is DOMRect => Boolean(r));
 
-    const hitsProtected = (left: number, top: number) => {
-      const buffer = 14;
-      const right = left + estWidth;
-      const bottom = top + estHeight;
-      return protectedRects.some(
-        (r) =>
-          !(
-            right < r.left - buffer ||
-            left > r.right + buffer ||
-            bottom < r.top - buffer ||
-            top > r.bottom + buffer
-          )
-      );
-    };
-
-    let chosenLeft = minLeft;
-    let chosenTop = minTop;
-    let bestDistance = -1;
-
-    for (let i = 0; i < 64; i++) {
-      const candLeft = minLeft + Math.random() * Math.max(1, maxLeft - minLeft);
-      const candTop = minTop + Math.random() * Math.max(1, maxTop - minTop);
-
-      if (hitsProtected(candLeft, candTop)) continue;
-
-      const dist = Math.hypot(candLeft - noRect.left, candTop - noRect.top);
-      if (dist >= 95) {
-        chosenLeft = candLeft;
-        chosenTop = candTop;
-        bestDistance = dist;
-        break;
-      }
-
-      if (dist > bestDistance) {
-        bestDistance = dist;
-        chosenLeft = candLeft;
-        chosenTop = candTop;
-      }
-    }
-
-    if (bestDistance < 0) {
-      const yesRect = yesBtnRef.current?.getBoundingClientRect();
-      chosenLeft = minLeft + Math.random() * Math.max(1, maxLeft - minLeft);
-      chosenTop =
-        yesRect && yesRect.top > window.innerHeight * 0.5 ? minTop : maxTop;
-    }
-
-    setNoOffset({
-      x: Math.round(chosenLeft - originLeft),
-      y: Math.round(chosenTop - originTop),
+    const nextOffset = computeDodgeOffset({
+      origin,
+      currentRect: noRect,
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      protectedRects,
+      cursor,
     });
+
+    setNoOffset(nextOffset);
     setNoCount((c) => c + 1);
+  };
+
+  const handleNoMouseEnter = (e: MouseEvent<HTMLButtonElement>) => {
+    if (performance.now() - lastMoveAtRef.current < 250) return;
+    moveNoButton({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleNoMouseMove = (e: MouseEvent<HTMLButtonElement>) => {
+    if (performance.now() - lastMoveAtRef.current < 250) return;
+    moveNoButton({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleNoClick = (e: MouseEvent<HTMLButtonElement>) => {
+    if (e.detail !== 0 && performance.now() - lastMoveAtRef.current < 250) {
+      return;
+    }
+    const cursor =
+      e.clientX || e.clientY ? { x: e.clientX, y: e.clientY } : null;
+    moveNoButton(cursor);
   };
 
   const handleYes = () => {
@@ -151,6 +117,10 @@ export default function LandingStep({ onYesClick, onBurst }: LandingStepProps) {
         ref={cardRef}
         className="relative z-10 w-full max-w-xl rounded-[1.75rem] border border-rose-200/80 bg-white/88 px-6 py-8 text-center shadow-[0_24px_60px_-15px_rgba(190,24,93,0.16)] backdrop-blur-md sm:rounded-[2rem] sm:px-10 sm:py-12"
       >
+        <div className="mb-2 flex justify-center">
+          <SmallPinkRoseIcon className="h-9 w-9 sm:h-11 sm:w-11" />
+        </div>
+
         <p className="text-xs font-medium text-rose-700 sm:text-sm">
           For Usha <span aria-hidden="true">·</span> A Special Invitation
         </p>
@@ -178,19 +148,23 @@ export default function LandingStep({ onYesClick, onBurst }: LandingStepProps) {
             Yes! 💖
           </button>
 
-          <button
-            ref={noBtnRef}
-            type="button"
-            onClick={moveNoButton}
-            style={{
-              transform: `translate3d(${noOffset.x}px, ${noOffset.y}px, 0)`,
-            }}
-            className={`inline-flex min-h-12 min-w-[128px] items-center justify-center rounded-2xl border border-rose-200 bg-white/95 px-7 py-3 text-base font-semibold text-[#5c1d33] shadow-sm transition-[transform,background-color,border-color] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-rotate-2 hover:border-rose-300 hover:bg-rose-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 whitespace-nowrap shrink-0 ${
-              noCount > 0 ? 'relative z-40' : 'relative z-10'
-            }`}
-          >
-            {noLabel}
-          </button>
+          <div ref={noAnchorRef} className="inline-flex shrink-0">
+            <button
+              ref={noBtnRef}
+              type="button"
+              onMouseEnter={handleNoMouseEnter}
+              onMouseMove={handleNoMouseMove}
+              onClick={handleNoClick}
+              style={{
+                transform: `translate3d(${noOffset.x}px, ${noOffset.y}px, 0)`,
+              }}
+              className={`inline-flex min-h-12 min-w-[128px] items-center justify-center rounded-2xl border border-rose-200 bg-white/95 px-7 py-3 text-base font-semibold text-[#5c1d33] shadow-sm transition-[transform,background-color,border-color] duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-rose-300 hover:bg-rose-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 will-change-transform whitespace-nowrap shrink-0 ${
+                noCount > 0 ? 'relative z-40' : 'relative z-10'
+              }`}
+            >
+              {noLabel}
+            </button>
+          </div>
         </div>
 
         <p

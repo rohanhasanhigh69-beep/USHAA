@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-export type ParticleMode = 'hearts' | 'petals' | 'starlight';
+export type ParticleMode = 'hearts' | 'roses' | 'petals' | 'starlight';
 
 interface ParticleCanvasProps {
   mode: ParticleMode;
@@ -23,7 +23,7 @@ interface Particle {
   lightness: number;
   rotation: number;
   rotationSpeed: number;
-  kind: 'circle' | 'heart' | 'petal';
+  kind: 'circle' | 'heart' | 'petal' | 'rose';
   ambient: boolean;
   phase: number;
 }
@@ -74,6 +74,58 @@ function drawPetal(
   ctx.restore();
 }
 
+function drawPinkRose(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+  rotation: number,
+  hue: number,
+  saturation: number,
+  lightness: number,
+  alpha: number
+) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+  ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+
+  const r = size * 0.56;
+
+  // Soft outer petals
+  ctx.fillStyle = `hsl(${hue}, ${Math.max(60, saturation - 8)}%, ${Math.min(86, lightness + 18)}%)`;
+  for (let i = 0; i < 5; i++) {
+    const a = (Math.PI * 2 * i) / 5;
+    ctx.beginPath();
+    ctx.ellipse(
+      Math.cos(a) * r * 0.48,
+      Math.sin(a) * r * 0.48,
+      r * 0.52,
+      r * 0.38,
+      a,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+  }
+
+  // Inner rose cup
+  ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${Math.max(46, lightness - 4)}%)`;
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.46, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Delicate center highlight
+  ctx.strokeStyle = 'rgba(255, 241, 242, 0.85)';
+  ctx.lineWidth = Math.max(0.8, size * 0.08);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.24, 0.3, Math.PI * 1.45);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
 export default function ParticleCanvas({
   mode,
   celebrating,
@@ -107,17 +159,28 @@ export default function ParticleCanvas({
     for (let i = 0; i < count; i++) {
       const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.45;
       const speed = 1.1 + Math.random() * 3.8;
+      const roll = Math.random();
       const kind: Particle['kind'] = forceHeart
-        ? 'heart'
-        : activeMode === 'hearts'
-        ? Math.random() > 0.25
+        ? roll > 0.28
           ? 'heart'
+          : 'rose'
+        : activeMode === 'roses'
+        ? roll > 0.32
+          ? 'rose'
+          : 'petal'
+        : activeMode === 'hearts'
+        ? roll > 0.35
+          ? 'heart'
+          : roll > 0.16
+          ? 'rose'
           : 'circle'
         : activeMode === 'petals'
-        ? Math.random() > 0.2
+        ? roll > 0.3
           ? 'petal'
+          : roll > 0.12
+          ? 'rose'
           : 'heart'
-        : Math.random() > 0.65
+        : roll > 0.65
         ? 'heart'
         : 'circle';
 
@@ -126,7 +189,12 @@ export default function ParticleCanvas({
         y: cy,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed - 0.7,
-        size: kind === 'heart' ? 7 + Math.random() * 8 : 4 + Math.random() * 6,
+        size:
+          kind === 'rose'
+            ? 10 + Math.random() * 6
+            : kind === 'heart'
+            ? 7 + Math.random() * 8
+            : 4 + Math.random() * 6,
         alpha: 0.92,
         decay: 0.008 + Math.random() * 0.01,
         hue: paletteHues[Math.floor(Math.random() * paletteHues.length)],
@@ -182,16 +250,27 @@ export default function ParticleCanvas({
     const makeAmbientParticle = (randomY = false): Particle => {
       const activeMode = modeRef.current;
       const hues = [340, 346, 333, 352, 326];
+      const roll = Math.random();
       const kind: Particle['kind'] =
-        activeMode === 'hearts'
-          ? Math.random() > 0.35
-            ? 'heart'
-            : 'circle'
-          : activeMode === 'petals'
-          ? Math.random() > 0.25
+        activeMode === 'roses'
+          ? roll > 0.32
+            ? 'rose'
+            : roll > 0.12
             ? 'petal'
             : 'circle'
-          : Math.random() > 0.8
+          : activeMode === 'hearts'
+          ? roll > 0.42
+            ? 'heart'
+            : roll > 0.24
+            ? 'rose'
+            : 'circle'
+          : activeMode === 'petals'
+          ? roll > 0.3
+            ? 'petal'
+            : roll > 0.12
+            ? 'rose'
+            : 'circle'
+          : roll > 0.8
           ? 'heart'
           : 'circle';
 
@@ -201,7 +280,9 @@ export default function ParticleCanvas({
         vx: (Math.random() - 0.5) * 0.45,
         vy: -(0.28 + Math.random() * 0.55),
         size:
-          kind === 'heart'
+          kind === 'rose'
+            ? 9 + Math.random() * 6.5
+            : kind === 'heart'
             ? 5.5 + Math.random() * 7
             : kind === 'petal'
             ? 5 + Math.random() * 5.5
@@ -247,13 +328,22 @@ export default function ParticleCanvas({
       lastTrailTime = now;
 
       const activeMode = modeRef.current;
+      const roll = Math.random();
       const kind: Particle['kind'] =
-        activeMode === 'hearts'
-          ? Math.random() > 0.4
+        activeMode === 'roses'
+          ? roll > 0.35
+            ? 'rose'
+            : 'petal'
+          : activeMode === 'hearts'
+          ? roll > 0.45
             ? 'heart'
+            : roll > 0.25
+            ? 'rose'
             : 'circle'
           : activeMode === 'petals'
-          ? 'petal'
+          ? roll > 0.25
+            ? 'petal'
+            : 'rose'
           : 'circle';
 
       particlesRef.current.push({
@@ -261,7 +351,12 @@ export default function ParticleCanvas({
         y: e.clientY + (Math.random() - 0.5) * 10,
         vx: (Math.random() - 0.5) * 0.9,
         vy: -0.5 - Math.random() * 0.9,
-        size: kind === 'circle' ? 2.5 + Math.random() * 3.5 : 5 + Math.random() * 5,
+        size:
+          kind === 'rose'
+            ? 8 + Math.random() * 5
+            : kind === 'circle'
+            ? 2.5 + Math.random() * 3.5
+            : 5 + Math.random() * 5,
         alpha: 0.72,
         decay: 0.016 + Math.random() * 0.012,
         hue: 338 + Math.random() * 18,
@@ -386,7 +481,19 @@ export default function ParticleCanvas({
 
         const color = `hsl(${p.hue}, ${p.saturation}%, ${p.lightness}%)`;
 
-        if (p.kind === 'heart') {
+        if (p.kind === 'rose') {
+          drawPinkRose(
+            ctx,
+            p.x,
+            p.y,
+            p.size,
+            p.rotation,
+            p.hue,
+            p.saturation,
+            p.lightness,
+            p.alpha
+          );
+        } else if (p.kind === 'heart') {
           drawHeart(ctx, p.x, p.y, p.size, p.rotation, color, p.alpha);
         } else if (p.kind === 'petal') {
           drawPetal(ctx, p.x, p.y, p.size, p.rotation, color, p.alpha);
